@@ -1,0 +1,22 @@
+{
+  "updated": "2026-06-19",
+  "note": "Injury/news layer for Draft Co-Pilot.",
+  "players": {
+    "tyreek hill": { "pen": 5, "flag": "released/unsigned; torn ACL+LCL, may miss into midseason" },
+    "tank dell": { "pen": 6, "flag": "multi-ligament knee; 2026 return timing unclear" },
+    "zach charbonnet": { "pen": 2.5, "flag": "ACL recovery; unlikely Week 1" },
+    "george kittle": { "pen": 2, "flag": "Achilles; may open on PUP, miss ~first month" },
+    "tucker kraft": { "pen": 1.5, "flag": "ACL recovery; on track but monitor early weeks" },
+    "chris olave": { "pen": 1.5, "flag": "blood clot — still not fully cleared, missed OTAs" },
+    "malik nabers": { "pen": 1, "flag": "ACL — on track but snap management early weeks" },
+    "rashee rice": { "pen": 1.5, "flag": "knee surgery in May; no suspension, off-field risk" },
+    "puka nacua": { "pen": 1, "flag": "off-field/legal — possible discipline risk" },
+    "marvin harrison jr.": { "pen": 0.8, "flag": "offseason injury, eased back slowly — monitor" },
+    "alec pierce": { "pen": 0.8, "flag": "ankle procedure; may miss start of camp" },
+    "garrett wilson": { "pen": 0.5, "flag": "knee — working back to full strength, monitor" },
+    "bo nix": { "pen": 0.5, "flag": "two ankle surgeries — monitor camp ramp" },
+    "jadarian price": { "pen": -3, "flag": "↑ lead back; Walker gone, Charbonnet (ACL) out early" },
+    "davante adams": { "pen": -1, "flag": "↑ target/red-zone bump if Nacua misses time" },
+    "jauan jennings": { "pen": -1, "flag": "↑ target bump, Kittle (Achilles) out early" }
+  }
+}

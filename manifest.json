@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Draft Co-Pilot — ESPN Fantasy Football",
+  "version": "2.13",
+  "description": "Auto-detects the contest's scoring and roster, then gives live value-based (VBD) draft recommendations with a streaming-aware QB baseline, per-seat blueprint, RB/WR depth-balancing, strength-of-schedule tilt, and daily injury adjustments.",
+  "content_scripts": [
+    {
+      "matches": ["https://fantasy.espn.com/football/draft*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": ["https://lm-api-reads.fantasy.espn.com/*"],
+  "web_accessible_resources": [
+    {
+      "resources": ["adjustments.json", "sos.json", "stacks.json"],
+      "matches": ["https://fantasy.espn.com/*"]
+    }
+  ]
+}
