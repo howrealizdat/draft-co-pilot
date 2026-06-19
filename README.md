@@ -2,9 +2,13 @@
 
 **A live, value-based draft assistant that runs inside the ESPN fantasy football draft room.**
 
+<p align="center"><img src="draft-co-pilot-panel.png" alt="Draft Co-Pilot panel during a draft" width="340"></p>
+
 Draft Co-Pilot is a Chrome extension (Manifest V3, vanilla JS, zero dependencies) that gives real-time pick recommendations tuned to *your* league's exact scoring. It reads the live draft board from ESPN's own API, values every player by **VBD (value over replacement) computed under your league's rules**, then layers in winning-draft strategy — a streaming-aware QB baseline, RB/WR depth balancing, strength-of-schedule tilt, and a full QB-stacking engine that helps you build correlated, high-ceiling rosters.
 
-It was built and tuned iteratively, with each change **validated against ESPN's own post-draft report-card grades** (see the audit trail in `DraftCoPilot_Practice_Log.md`).
+It was built and tuned iteratively, with each change **validated against ESPN's own post-draft report-card grades**.
+
+> ⚠️ **Heads up — this is tuned to my league.** The strategy weights and stack list were calibrated to *my* specific ESPN league and its custom scoring system (half-PPR with several quirks). It auto-detects scoring, roster slots, and draft position from whatever league you point it at, but the tuning reflects my format. **To use it yourself, set your own league ID** in `content.js` (the `REAL` constant near the top), and expect to adjust the strategy weights to match your league's scoring. Results will vary by format.
 
 ---
 
