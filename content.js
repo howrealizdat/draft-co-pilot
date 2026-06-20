@@ -33,12 +33,18 @@
 //        otherwise it's a gentle nudge so you take the better player and let the stack come to you.
 // v2.13: TOP STACKS + targeting now built from LIVE ESPN 2026 rosters (each team's real QB + top 2 pass-
 //        catchers, ranked by offense strength) — always current, no more stale hand-curated lists.
+// v2.14: positional CLIFF factor — generalizes the QB wait-cost logic to RB/WR/TE. Each pick is weighted by
+//        the points drop to the next same-position player likely to survive to your next pick, so BEST PICK
+//        reacts to positional runs/cliffs (grab the last scarce RB; don't reach on deep WR). Capped at +3.
+// v2.15: stacking SIMPLIFIED — removed stack targeting, the STACK OPTIONS panel, and all stack pick-bonuses
+//        so BEST PICK is pure value/need/cliff/schedule. Kept only the "STACK UNLOCKED" alert (3 skill
+//        players from one team) and the TOP STACKS reference list.
 (function () {
   if (!/\/football\/draft/.test(location.pathname)) return;
   if (document.getElementById('dcp')) { document.getElementById('dcp').style.display = 'block'; return; }
 
-  var VERSION = "2.13"; // shown in the panel header so you can confirm which build is actually loaded.
-  var REAL = 0; // set to your ESPN league ID, or leave 0 to auto-detect from the draft-room URL
+  var VERSION = '2.15'; // shown in the panel header so you can confirm which build is actually loaded.
+  var REAL = 0; // ← SET THIS to your ESPN league ID (the leagueId=XXXXXXX in your league URL). During a live draft the ID is auto-detected from the draft-room URL; this constant is only the fallback used for mock drafts.
   var POS = { 1: 'QB', 2: 'RB', 3: 'WR', 4: 'TE', 5: 'K', 16: 'DST' };
   // ESPN proTeamId -> abbreviation, for the strength-of-schedule lookup in sos.json.
   var PROTEAM = { 1: 'ATL', 2: 'BUF', 3: 'CHI', 4: 'CIN', 5: 'CLE', 6: 'DAL', 7: 'DEN', 8: 'DET', 9: 'GB', 10: 'TEN', 11: 'IND', 12: 'KC', 13: 'LV', 14: 'LAR', 15: 'MIA', 16: 'MIN', 17: 'NE', 18: 'NO', 19: 'NYG', 20: 'NYJ', 21: 'PHI', 22: 'ARI', 23: 'PIT', 24: 'LAC', 25: 'SF', 26: 'SEA', 27: 'TB', 28: 'WSH', 29: 'CAR', 30: 'JAX', 33: 'BAL', 34: 'HOU' };
@@ -46,6 +52,7 @@
   var SOS_CAP = 1.5; // strength-of-schedule tilt is clamped to +/- this — a tiebreaker, never a driver.
   var STACK_WR = 1.5, STACK_RB = 0.8; // v2.6 stacking bonus (QB + same-team pass-catcher); capped tiebreaker.
   var STACK_OFF = 1.0, STACK_MAX = 3.0; // v2.7 "load up on one elite offense" bonus + overall stack cap.
+  var CLIFF_SCALE = 0.6, CLIFF_CAP = 3; // v2.14 positional drop-off ("cliff") factor for RB/WR/TE.
   var API = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/2026/segments/0/leagues/';
 
   var SCORE_LID = REAL;
@@ -358,17 +365,7 @@
     var supply = { QB: 0, RB: 0, WR: 0, TE: 0 }, tierCount = {};
     avail.forEach(function (p) { if (p.vbd > 0 && supply[p.pos] !== undefined) supply[p.pos]++; var tk = p.pos + '_' + p.tier; tierCount[tk] = (tierCount[tk] || 0) + 1; });
     var bp = seatBlueprint(MYSLOT, LSIZE), wantPos = (bp && round <= bp.length) ? bp[round - 1] : null;
-    // v2.11 the stack we're chasing — its still-available pieces get pushed to the top of the picks.
-    var tgt = targetStack(st), tgtOpen = {};
-    if (tgt) tgt.pieces.forEach(function (pc) { if (pc.status === 'open' && pc.pl) tgtOpen[pc.pl.nl] = 1; });
-    // v2.6/2.7 stacking: which NFL teams do my QB(s)/pass-catchers play for, and how many mates per team?
-    var myQBteams = {}, myPCteams = {}, myTeamCount = {};
-    (st.myPlayers || []).forEach(function (mp) {
-      if (!mp.team) return;
-      myTeamCount[mp.team] = (myTeamCount[mp.team] || 0) + 1;
-      if (mp.pos === 'QB') myQBteams[mp.team] = 1;
-      if (mp.pos === 'WR' || mp.pos === 'TE' || mp.pos === 'RB') myPCteams[mp.team] = 1;
-    });
+    // v2.15: stacking removed from pick logic — BEST PICK is pure value / need / cliff / schedule.
     return avail.map(function (p) {
       var w = p.vbd, have = r[p.pos] || 0, cap = mx[p.pos] || MAX[p.pos] || 99;
       p.fall = 0; p.steal = '';
@@ -405,29 +402,13 @@
         var sosTeam = SOSD.teams && SOSD.teams[p.team]; var tl = sosTeam ? (+sosTeam[p.pos] || 0) : 0;
         if (tl) { p.sos = Math.max(-SOS_CAP, Math.min(SOS_CAP, tl)); w += p.sos; }
       }
-      // v2.6/2.7 stacking (capped tiebreaker): QB↔pass-catcher pairing PLUS loading up on one ELITE
-      // offense (the Purdy/CMC/Kittle play). Offense-strength gated so we never stack a weak offense.
-      p.stack = '';
-      if (w > -900 && p.team) {
-        var mates = myTeamCount[p.team] || 0, off = OFFN[p.team] || 0, bonus = 0;
-        if ((p.pos === 'WR' || p.pos === 'TE') && myQBteams[p.team]) bonus += STACK_WR;       // QB → receiver
-        else if (p.pos === 'RB' && myQBteams[p.team]) bonus += STACK_RB;                       // QB → RB
-        else if (p.pos === 'QB' && myPCteams[p.team]) bonus += STACK_WR;                       // receiver → QB
-        if (mates >= 1 && off >= 0.55) bonus += STACK_OFF * off * Math.min(mates, 3);          // elite-offense onslaught
-        if (bonus > 0) {
-          w += Math.min(bonus, STACK_MAX);
-          p.stack = (mates >= 2) ? (p.team + ' onslaught — you have ' + mates)
-            : (myQBteams[p.team] && p.pos !== 'QB') ? ('stack w/ your QB (' + p.team + ')')
-            : (p.pos === 'QB') ? ('stack w/ your ' + p.team + ' pass-catcher')
-            : (p.team + ' stack');
-        }
-      }
-      // v2.12 TARGET STACK: push a target piece to the top ONLY when it's about to be gone (grab now);
-      // if it'll likely come back to you, just a gentle nudge so you don't reach over a key player.
-      p.target = false; p.targetNow = false;
-      if (w > -900 && tgtOpen[p.nl]) {
-        p.target = true;
-        if (surviveProb(p.adp, nextPick) < 0.5) { w += TARGET_BONUS; p.targetNow = true; } else { w += 1.5; }
+      // v2.14 positional CLIFF: generalizes the QB wait-cost logic to RB/WR/TE. Weight a candidate up by
+      // the projected-points drop from him to the next same-position player likely to survive to your next
+      // pick — steep cliff (scarce now, e.g. an RB run) = grab; flat (deep, e.g. WR) = ~0, you can wait.
+      p.cliff = 0;
+      if (w > -900 && (p.pos === 'RB' || p.pos === 'WR' || p.pos === 'TE')) {
+        var drop = p.pts - expectedAvailPts(p.pos, nextPick, avail, p);
+        if (drop > 0) { p.cliff = Math.round(drop * 10) / 10; w += Math.min(drop * CLIFF_SCALE, CLIFF_CAP); }
       }
       if (w > -900 && (p.pos === 'QB' || p.pos === 'RB' || p.pos === 'WR' || p.pos === 'TE')) {
         var gap = pickNo - (p.adp || 999);
@@ -519,22 +500,6 @@
         h += '</div>';
       }
       if (bestSteal) { h += '<div style="margin-bottom:7px;padding:6px 8px;background:#3a1d0a;border:1px solid #d2691e;border-radius:6px"><span style="color:#ffb060;font-weight:bold">🔥 ' + bestSteal.steal + ': ' + bestSteal.pos + ' ' + bestSteal.name + '</span><div style="font-size:11px;color:#e7c39a">ADP ' + Math.round(bestSteal.adp) + ', still here at ' + (st.n + 1) + ' — grab him</div></div>'; }
-      // v2.11 TARGET STACK checklist — the stack we're chasing, with each piece's status. Draft the ⭐ pieces.
-      var tgtR = targetStack(st);
-      if (tgtR) {
-        h += '<div style="margin-bottom:7px;padding:7px 9px;background:#241636;border:1px solid #8a5cd0;border-radius:6px"><div style="color:#c9a0ff;font-weight:bold;margin-bottom:3px">🎯 TARGET STACK: ' + tgtR.stack.team + ' <span style="font-weight:normal;font-size:11px;color:#9b8bbf">(' + tgtR.rostered + '/' + tgtR.pieces.length + ' — build around this)</span></div>';
-        tgtR.pieces.forEach(function (pc) {
-          var icon = pc.status === 'have' ? '✅' : pc.status === 'open' ? (pc.now ? '⭐' : '🕓') : '✖';
-          var col = pc.status === 'have' ? '#7CFC9A' : pc.status === 'open' ? (pc.now ? '#ffd24a' : '#cdbbe6') : '#6b7790';
-          var deco = pc.status === 'gone' ? 'text-decoration:line-through;' : '';
-          var when = pc.status === 'open' ? (pc.now ? ' · grab now' : ' · can wait') : '';
-          h += '<div style="font-size:12px;color:' + col + ';' + deco + '">' + icon + ' ' + pc.name + (pc.pl ? ' <span style="color:#9bb">' + pc.pl.pos + (pc.status === 'open' ? ' · ADP ' + Math.round(pc.pl.adp) + when : '') + '</span>' : '') + '</div>';
-        });
-        h += '</div>';
-      }
-      // v2.6.1 make stacks obvious: callout box when a recommended pick stacks with your roster.
-      var bestStack = (top || []).filter(function (o) { return o.p.stack; })[0];
-      if (bestStack) { h += '<div style="margin-bottom:7px;padding:6px 8px;background:#2a1a3f;border:1px solid #8a5cd0;border-radius:6px"><span style="color:#c9a0ff;font-weight:bold">🔗 STACK AVAILABLE: ' + bestStack.p.pos + ' ' + bestStack.p.name + '</span><div style="font-size:11px;color:#d9c6f5">' + bestStack.p.stack + ' — same-team TDs score twice for you</div></div>'; }
       var bpSeq = seatBlueprint(MYSLOT, LSIZE), curRound = Math.max(1, Math.ceil((st.n + 1) / (LSIZE || 10)));
       if (bpSeq && MYSLOT) {
         var bpHtml = bpSeq.map(function (pos, i) { var cur = (i + 1) === curRound; return '<span style="display:inline-block;margin:1px 2px;padding:1px 5px;border-radius:4px;font-size:11px;' + (cur ? 'background:#16407a;color:#cfe3ff;font-weight:bold;' : 'background:#1a2336;color:#7b8aa6;') + '">R' + (i + 1) + ' ' + pos + '</span>'; }).join('');
@@ -561,50 +526,23 @@
         return '#b5462f';                                          // red
       }
       h += '<div style="font-weight:bold;color:#7CFC9A;margin-bottom:3px">BEST PICK ▼</div>';
-      h += '<div style="font-size:10px;color:#9bb;margin-bottom:5px">🟢 wins + fills a need · 🟡 value or need · 🔴 poor fit / reach · 🟣 stack opportunity — all scored in <b>your</b> league</div>';
+      h += '<div style="font-size:10px;color:#9bb;margin-bottom:5px">🟢 wins + fills a need · 🟡 value or need · 🔴 poor fit / reach — all scored in <b>your</b> league</div>';
       top.forEach(function (o, i) {
         var flagHtml = o.p.flag ? (o.p.boost ? '<div style="font-size:11px;color:#7CFC9A">↑ ' + o.p.flag + '</div>' : '<div style="font-size:11px;color:#ff8a8a">⚠ ' + o.p.flag + '</div>') : '';
         var tag = o.p.steal ? '<div style="font-size:11px;color:#ffb060">🔥 ' + o.p.steal + ' — ADP ' + Math.round(o.p.adp) + '</div>' : ((o.p.fall && o.p.fall >= 8) ? '<div style="font-size:11px;color:#7fd9ff">📉 value — slid ' + o.p.fall + ' past ADP</div>' : '');
         var sosTag = (o.p.sos && Math.abs(o.p.sos) >= 0.4) ? '<div style="font-size:11px;color:' + (o.p.sos > 0 ? '#7CFC9A">🗓 easy schedule' : '#ff8a8a">🗓 tough schedule') + ' (' + (o.p.sos > 0 ? '+' : '') + o.p.sos.toFixed(1) + ')</div>' : '';
-        var stackTag = o.p.stack ? '<div style="display:inline-block;margin-top:3px;font-size:11px;font-weight:bold;color:#1a0f2e;background:#c9a0ff;padding:1px 7px;border-radius:4px">🔗 STACK — ' + o.p.stack + '</div>' : '';
-        var targetTag = o.p.target ? (o.p.targetNow
-          ? '<div style="display:inline-block;margin-top:3px;font-size:11px;font-weight:bold;color:#1a0f2e;background:#ffd24a;padding:1px 7px;border-radius:4px">🎯 STACK — GRAB NOW</div>'
-          : '<div style="display:inline-block;margin-top:3px;font-size:11px;color:#cdbbe6;border:1px solid #6d4aa0;padding:1px 7px;border-radius:4px">🎯 stack target — can wait</div>') : '';
+        var cliffTag = (o.p.cliff && o.p.cliff >= 2) ? '<div style="font-size:11px;color:#ffb060">⛰ position thinning — −' + o.p.cliff.toFixed(1) + ' to your next ' + o.p.pos + '</div>' : '';
         var col = pickColor(o);
-        // v2.7.1: a stack opportunity paints the whole row purple so it's unmistakable; otherwise use the green/yellow/red fit color.
-        var border = o.p.stack ? '#b388ff' : col;
-        var bg = o.p.stack ? 'background:#3a2358;box-shadow:0 0 0 1px #8a5cd0 inset;' : (i === 0 ? 'background:#13351f;' : 'background:#0f1828;');
-        h += '<div style="padding:5px 7px;border-radius:5px;margin-bottom:3px;border-left:5px solid ' + border + ';' + bg + '"><b>' + o.p.pos + '</b> ' + o.p.name + '<span style="float:right;color:#9bb">+' + o.p.vbd + '</span>' + flagHtml + tag + sosTag + stackTag + targetTag + '</div>';
+        var bg = (i === 0 ? 'background:#13351f;' : 'background:#0f1828;');
+        h += '<div style="padding:5px 7px;border-radius:5px;margin-bottom:3px;border-left:5px solid ' + col + ';' + bg + '"><b>' + o.p.pos + '</b> ' + o.p.name + '<span style="float:right;color:#9bb">+' + o.p.vbd + '</span>' + flagHtml + tag + sosTag + cliffTag + '</div>';
       });
-      // v2.8 persistent STACK OPTIONS alert — always lists every available teammate of someone you already
-      // roster, in purple, regardless of whether they crack the BEST PICK list. You decide; nothing missed.
-      var myT = {}, haveQB = {}, havePC = {};
-      (st.myPlayers || []).forEach(function (mp) { if (!mp.team) return; myT[mp.team] = (myT[mp.team] || 0) + 1; if (mp.pos === 'QB') haveQB[mp.team] = 1; if (mp.pos === 'WR' || mp.pos === 'TE' || mp.pos === 'RB') havePC[mp.team] = 1; });
-      // v2.9.1 TRIPLE STACK! — 3+ SKILL-position players (QB/RB/WR/TE) from one team = a real strong stack
-      // (K/D-ST don't count). Banner + a British shout-out (once per team).
+      // v2.15 TRIPLE-STACK alert (the one stack feature kept): 3+ skill players (QB/RB/WR/TE) from one team
+      // → "you unlocked a stack" banner + a British shout-out, once per team. Best in real drafts (clean roster read).
       var skillByTeam = {};
       (st.myPlayers || []).forEach(function (mp) { if (mp.team && (mp.pos === 'QB' || mp.pos === 'RB' || mp.pos === 'WR' || mp.pos === 'TE')) skillByTeam[mp.team] = (skillByTeam[mp.team] || 0) + 1; });
       var triples = Object.keys(skillByTeam).filter(function (t) { return skillByTeam[t] >= 3; });
       triples.forEach(function (t) { if (!announcedStacks[t]) { announcedStacks[t] = 1; sayTripleStack(t); } });
-      if (triples.length) { h += '<div style="margin-bottom:7px;padding:8px 10px;background:linear-gradient(90deg,#5b21b6,#8a5cd0);color:#fff;font-weight:bold;border-radius:6px;text-align:center;letter-spacing:.5px">🎉 TRIPLE STACK — ' + triples.map(function (t) { return t + ' ×' + skillByTeam[t]; }).join(' · ') + ' 🎉</div>'; }
-      var stackOpts = MODEL.filter(function (p) {
-        if (st.drafted[p.nl] || !p.team || !myT[p.team] || p.pos === 'K' || p.pos === 'DST') return false;
-        var capP = (st.maxes && st.maxes[p.pos]) || MAX[p.pos] || 99; return (st.roster[p.pos] || 0) < capP;
-      }).sort(function (a, b) { return b.vbd - a.vbd; }).slice(0, 8);
-      h += '<div style="font-weight:bold;color:#c9a0ff;margin:9px 0 4px">🔗 STACK OPTIONS</div>';
-      if (stackOpts.length) {
-        stackOpts.forEach(function (p) {
-          var mates = myT[p.team], off = OFFN[p.team] || 0;
-          var note = (mates >= 2) ? (p.team + ' onslaught — you have ' + mates)
-            : (haveQB[p.team] && p.pos !== 'QB') ? ('pairs with your ' + p.team + ' QB')
-            : (p.pos === 'QB' && havePC[p.team]) ? ('pairs with your ' + p.team + ' pass-catcher')
-            : ('pairs with your ' + p.team + ' player');
-          var quality = off >= 0.55 ? '' : ' · ⚠ weaker offense';
-          h += '<div style="padding:4px 7px;margin-bottom:3px;border-left:5px solid #b388ff;background:#3a2358;border-radius:5px"><b>' + p.pos + '</b> ' + p.name + ' <span style="color:#9bb">' + p.team + '</span><span style="float:right;color:#9bb">+' + p.vbd + '</span><div style="font-size:11px;color:#d9c6f5">' + note + quality + '</div></div>';
-        });
-      } else {
-        h += '<div style="font-size:11px;color:#7b8aa6;padding:2px 0 4px">No stack options yet — once you roster a player, his available teammates appear here.</div>';
-      }
+      if (triples.length) { h += '<div style="margin-bottom:7px;padding:8px 10px;background:linear-gradient(90deg,#5b21b6,#8a5cd0);color:#fff;font-weight:bold;border-radius:6px;text-align:center;letter-spacing:.5px">🎉 STACK UNLOCKED — ' + triples.map(function (t) { return t + ' ×' + skillByTeam[t]; }).join(' · ') + ' 🎉</div>'; }
       // v2.13 reference: top stacks from LIVE 2026 rosters (each team's real QB + top pass-catchers).
       var refStacks = computeTopStacks();
       if (refStacks.length) {
