@@ -1,19 +1,19 @@
 {
-  "updated": "2026-06-20",
+  "updated": "2026-06-21",
   "season": "2026",
   "note": "Top NFL fantasy stacks for the 2026 season — a reference list to eyeball while drafting. QB + primary pass-catcher(s) from high-volume offenses. Refreshed each morning from current rankings. Cross-check who's still on the board; grab the pieces you can.",
   "stacks": [
     {"team": "CIN", "qb": "Joe Burrow", "pieces": "Ja'Marr Chase + Tee Higgins", "note": "Elite pass volume, highest ceiling"},
-    {"team": "DAL", "qb": "Dak Prescott", "pieces": "CeeDee Lamb + George Pickens", "note": "Pass-heavy, two alpha WRs"},
-    {"team": "PHI", "qb": "Jalen Hurts", "pieces": "A.J. Brown + DeVonta Smith", "note": "Top-8 QB, rushing TDs"},
-    {"team": "BUF", "qb": "Josh Allen", "pieces": "Khalil Shakir", "note": "Top projected QB, rushing upside"},
-    {"team": "MIN", "qb": "J.J. McCarthy", "pieces": "Justin Jefferson", "note": "Elite WR1 target share"},
-    {"team": "DET", "qb": "Jared Goff", "pieces": "Amon-Ra St. Brown", "note": "Top-scoring offense, often underdrafted"},
-    {"team": "HOU", "qb": "C.J. Stroud", "pieces": "Nico Collins", "note": "Clear target-hog WR1"},
+    {"team": "WSH", "qb": "Jayden Daniels", "pieces": "Terry McLaurin", "note": "Top dual-threat QB, big-play WR1"},
+    {"team": "PHI", "qb": "Jalen Hurts", "pieces": "A.J. Brown + DeVonta Smith", "note": "Rushing TDs, two alpha WRs"},
     {"team": "BAL", "qb": "Lamar Jackson", "pieces": "Zay Flowers", "note": "Efficient dual-threat offense"},
+    {"team": "DET", "qb": "Jared Goff", "pieces": "Amon-Ra St. Brown", "note": "Top-scoring offense, target hog"},
+    {"team": "MIN", "qb": "J.J. McCarthy", "pieces": "Justin Jefferson", "note": "Elite WR1 target share"},
+    {"team": "DAL", "qb": "Dak Prescott", "pieces": "CeeDee Lamb + George Pickens", "note": "Pass-heavy, two alpha WRs"},
     {"team": "LAC", "qb": "Justin Herbert", "pieces": "Ladd McConkey", "note": "Cheap QB, target-hog WR"},
-    {"team": "SF", "qb": "Brock Purdy", "pieces": "George Kittle", "note": "Elite passing TD rate"},
-    {"team": "GB", "qb": "Jordan Love", "pieces": "Tucker Kraft + Christian Watson", "note": "Efficient offense, ascending TE"},
-    {"team": "CHI", "qb": "Caleb Williams", "pieces": "Rome Odunze", "note": "Ben Johnson offense, red-zone targets"}
+    {"team": "BUF", "qb": "Josh Allen", "pieces": "Khalil Shakir", "note": "Top projected QB, rushing upside"},
+    {"team": "HOU", "qb": "C.J. Stroud", "pieces": "Nico Collins", "note": "Clear target-hog WR1"},
+    {"team": "KC", "qb": "Patrick Mahomes", "pieces": "Xavier Worthy + Rashee Rice", "note": "High-volume passing attack"},
+    {"team": "SEA", "qb": "Sam Darnold", "pieces": "Jaxon Smith-Njigba", "note": "Ascending WR1, heavy targets"}
   ]
 }

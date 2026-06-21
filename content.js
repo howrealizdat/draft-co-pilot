@@ -39,11 +39,16 @@
 // v2.15: stacking SIMPLIFIED — removed stack targeting, the STACK OPTIONS panel, and all stack pick-bonuses
 //        so BEST PICK is pure value/need/cliff/schedule. Kept only the "STACK UNLOCKED" alert (3 skill
 //        players from one team) and the TOP STACKS reference list.
+// v2.16: each BEST PICK shows the player's consensus draft ROUND from live ADP ("exp R3") — expert/field
+//        placement, not our theory. Live ADP self-updates daily with injuries/news; green ↓ = slipped = value.
+// v2.17: position-aware EDGE tags on each pick — shows WHY a player wins under this league's scoring from his
+//        projected profile (RB goal-line/receiving, WR target-hog/big-play, TE primary target, QB rushing,
+//        K high-scoring offense, D/ST matchup). Read-only; the value/ranking already accounts for these.
 (function () {
   if (!/\/football\/draft/.test(location.pathname)) return;
   if (document.getElementById('dcp')) { document.getElementById('dcp').style.display = 'block'; return; }
 
-  var VERSION = '2.15'; // shown in the panel header so you can confirm which build is actually loaded.
+  var VERSION = '2.17'; // shown in the panel header so you can confirm which build is actually loaded.
   var REAL = 0; // ← SET THIS to your ESPN league ID (the leagueId=XXXXXXX in your league URL). During a live draft the ID is auto-detected from the draft-room URL; this constant is only the fallback used for mock drafts.
   var POS = { 1: 'QB', 2: 'RB', 3: 'WR', 4: 'TE', 5: 'K', 16: 'DST' };
   // ESPN proTeamId -> abbreviation, for the strength-of-schedule lookup in sos.json.
@@ -168,6 +173,21 @@
     return STACKS;
   }
 
+  // v2.17 position-aware "edge" tag: surfaces WHY a player wins under this league's scoring, from his
+  // projected per-game profile (×17 ≈ season). Read-only — the value/ranking already bakes these in.
+  function edgeTag(p) {
+    if (!p || !p.pos) return '';
+    var rec = Math.round((p.rec || 0) * 17), ry = Math.round((p.ry || 0) * 17), rtd = Math.round((p.rtd || 0) * 17);
+    var ypc = (p.rec > 0) ? (p.rey / p.rec) : 0;
+    if (p.pos === 'QB') return ry >= 420 ? ('🏃 rushing QB · ~' + ry + ' rush yds') : '';
+    if (p.pos === 'RB') { if (rtd >= 9) return '🥅 goal-line role · ~' + rtd + ' rush TD'; if (rec >= 55) return '🎯 receiving back · ~' + rec + ' catches'; return ''; }
+    if (p.pos === 'WR') { if (rec >= 95) return '🎯 target hog · ~' + rec + ' catches'; if (ypc >= 14) return '💥 big-play · ' + ypc.toFixed(0) + ' yds/catch'; return ''; }
+    if (p.pos === 'TE') return rec >= 70 ? ('🎯 primary target · ~' + rec + ' catches') : '';
+    if (p.pos === 'K') return (OFFN[p.team] || 0) >= 0.6 ? '🟢 high-scoring offense · extra PATs/FGs' : '';
+    if (p.pos === 'DST') return '🛡 stream by matchup';
+    return '';
+  }
+
   function targetStack(st) {
     var list = computeTopStacks(); if (!list.length) return null;
     var pickNo = st.n + 1, nextPick = nextMyPick(pickNo);
@@ -247,7 +267,9 @@
         var arr = (d.players || []).map(function (e) {
           var pl = e.player || {}; var s = (pl.stats || []).filter(function (x) { return x.seasonId === 2026 && x.statSourceId === 1; })[0];
           var own = pl.ownership || {};
-          return { id: e.id, name: pl.fullName || '?', pos: POS[pl.defaultPositionId] || '?', team: PROTEAM[pl.proTeamId] || '', pts: (s && s.appliedTotal != null) ? Math.round(s.appliedTotal * 10) / 10 : 0, adp: (own.averageDraftPosition && own.averageDraftPosition > 0) ? own.averageDraftPosition : 999 };
+          var ss = (s && s.stats) || {}; var gv = function (id) { return ss[id] != null ? ss[id] : 0; };
+          return { id: e.id, name: pl.fullName || '?', pos: POS[pl.defaultPositionId] || '?', team: PROTEAM[pl.proTeamId] || '', pts: (s && s.appliedTotal != null) ? Math.round(s.appliedTotal * 10) / 10 : 0, adp: (own.averageDraftPosition && own.averageDraftPosition > 0) ? own.averageDraftPosition : 999,
+            ry: gv(24), rtd: gv(25), rec: gv(53), rey: gv(42), retd: gv(43) }; // v2.17 projected per-game components for edge tags
         }).filter(function (p) { return p.pts > 0 && p.pos !== '?'; });
         var bp = {}; arr.forEach(function (p) { (bp[p.pos] = bp[p.pos] || []).push(p); });
         Object.keys(bp).forEach(function (k) { bp[k].sort(function (a, b) { return b.pts - a.pts; }); });
@@ -532,9 +554,13 @@
         var tag = o.p.steal ? '<div style="font-size:11px;color:#ffb060">🔥 ' + o.p.steal + ' — ADP ' + Math.round(o.p.adp) + '</div>' : ((o.p.fall && o.p.fall >= 8) ? '<div style="font-size:11px;color:#7fd9ff">📉 value — slid ' + o.p.fall + ' past ADP</div>' : '');
         var sosTag = (o.p.sos && Math.abs(o.p.sos) >= 0.4) ? '<div style="font-size:11px;color:' + (o.p.sos > 0 ? '#7CFC9A">🗓 easy schedule' : '#ff8a8a">🗓 tough schedule') + ' (' + (o.p.sos > 0 ? '+' : '') + o.p.sos.toFixed(1) + ')</div>' : '';
         var cliffTag = (o.p.cliff && o.p.cliff >= 2) ? '<div style="font-size:11px;color:#ffb060">⛰ position thinning — −' + o.p.cliff.toFixed(1) + ' to your next ' + o.p.pos + '</div>' : '';
+        var edge = edgeTag(o.p); var edgeHtml = edge ? '<div style="font-size:11px;color:#7fd9ff">' + edge + '</div>' : '';
+        // v2.16 consensus draft round from live ADP (expert/field placement). Green ↓ = slipped past it = value.
+        var advR = (o.p.adp && o.p.adp < 999) ? Math.ceil(o.p.adp / (LSIZE || 10)) : 0;
+        var advBadge = advR ? '<span style="font-size:10px;margin-left:5px;color:' + (curRound > advR ? '#7CFC9A' : '#9bb') + '">· exp R' + advR + (curRound > advR ? ' ↓' : '') + '</span>' : '';
         var col = pickColor(o);
         var bg = (i === 0 ? 'background:#13351f;' : 'background:#0f1828;');
-        h += '<div style="padding:5px 7px;border-radius:5px;margin-bottom:3px;border-left:5px solid ' + col + ';' + bg + '"><b>' + o.p.pos + '</b> ' + o.p.name + '<span style="float:right;color:#9bb">+' + o.p.vbd + '</span>' + flagHtml + tag + sosTag + cliffTag + '</div>';
+        h += '<div style="padding:5px 7px;border-radius:5px;margin-bottom:3px;border-left:5px solid ' + col + ';' + bg + '"><b>' + o.p.pos + '</b> ' + o.p.name + advBadge + '<span style="float:right;color:#9bb">+' + o.p.vbd + '</span>' + flagHtml + tag + sosTag + cliffTag + edgeHtml + '</div>';
       });
       // v2.15 TRIPLE-STACK alert (the one stack feature kept): 3+ skill players (QB/RB/WR/TE) from one team
       // → "you unlocked a stack" banner + a British shout-out, once per team. Best in real drafts (clean roster read).

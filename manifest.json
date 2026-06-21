@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Draft Co-Pilot — ESPN Fantasy Football",
-  "version": "2.15",
+  "version": "2.17",
   "description": "Auto-detects the contest's scoring and roster, then gives live value-based (VBD) draft recommendations with a streaming-aware QB baseline, per-seat blueprint, RB/WR depth-balancing, strength-of-schedule tilt, and daily injury adjustments.",
   "content_scripts": [
     {
