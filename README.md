@@ -4,66 +4,57 @@
 
 <p align="center"><img src="draft-co-pilot-panel.png" alt="Draft Co-Pilot panel during a draft" width="340"></p>
 
-Draft Co-Pilot is a Chrome extension (Manifest V3, vanilla JS, zero dependencies) that gives real-time pick recommendations tuned to *your* league's exact scoring. It reads the live draft board from ESPN's own API, values every player by **VBD (value over replacement) computed under your league's rules**, then layers in winning-draft strategy — a streaming-aware QB baseline, RB/WR depth balancing, strength-of-schedule tilt, and a full QB-stacking engine that helps you build correlated, high-ceiling rosters.
+> **Source available on request.** This is a case study, not a distribution. The engine and its tuning data are proprietary and kept in a private repository while the product is being prepared for commercial release. Hiring teams and technical reviewers: email **EdmundGrayworks@gmail.com** and I will walk you through the code directly or grant read access.
 
-It was built and tuned iteratively, with each change **validated against ESPN's own post-draft report-card grades**.
+Draft Co-Pilot is a Chrome extension (Manifest V3, vanilla JS, zero dependencies) that gives real-time pick recommendations tuned to *your* league's exact scoring. It reads the live draft board from ESPN's own API, values every player by **VBD (value over replacement) computed under your league's rules**, then layers in drafting strategy: a streaming-aware QB baseline, RB/WR depth balancing, strength-of-schedule tilt, and a full QB-stacking engine for correlated, high-ceiling rosters.
 
-> ⚠️ **Heads up — this is tuned to my league.** The strategy weights and stack list were calibrated to *my* specific ESPN league and its custom scoring system (half-PPR with several quirks). It auto-detects scoring, roster slots, and draft position from whatever league you point it at, but the tuning reflects my format. **To use it yourself, set your own league ID** in `content.js` (the `REAL` constant near the top), and expect to adjust the strategy weights to match your league's scoring. Results will vary by format.
+It was built and tuned iteratively across **30+ shipped versions**, with each change **validated against ESPN's own post-draft report-card grades**. An outside scorekeeper graded the work rather than the tool grading itself.
 
 ---
 
 ## What it does
 
-- **Scoring-aware value engine.** Pulls your league's scoring + roster settings and projects every player under *those* rules, then ranks by value-over-replacement (VBD) — not generic rankings. Surfaces the **BEST PICK**, refreshing live as players come off the board.
-- **Color-coded picks.** Each suggestion gets a 🟢 / 🟡 / 🔴 bar (strong value + fills a need / one or the other / poor fit or reach), plus 🔥 steal and 📉 value flags.
+- **Scoring-aware value engine.** Pulls your league's scoring and roster settings, projects every player under *those* rules, then ranks by value over replacement rather than generic rankings. Surfaces the **BEST PICK**, refreshing live as players come off the board.
+- **Color-coded picks.** Each suggestion gets a 🟢 / 🟡 / 🔴 bar (strong value and fills a need / one or the other / poor fit or reach), plus 🔥 steal and 📉 value flags.
 - **Streaming-aware QB baseline.** Values QB1 against the best QB likely to survive to your *next* pick, so it waits on QB instead of over-drafting one early.
 - **Per-seat blueprint.** Tailors the early-round positional plan to your draft slot.
-- **RB/WR depth balancing.** Favors whichever position is thinner in the flex/bench rounds to prevent positional gluts.
-- **Strength-of-schedule tilt.** A capped, position-aware nudge toward players facing weak defenses, built from the real season schedule + each defense's projected strength (championship weeks weighted heavier).
-- **Stacking engine.** Rewards QB + same-team pass-catchers (correlated scoring), an "onslaught" bonus for loading up on one elite offense, an always-on **STACK OPTIONS** panel, a live **🎯 TARGET STACK** that picks the cheapest stack to complete for your seat and tells you the exact pick to grab each piece — and a 🎉 triple-stack celebration (with a voice call-out).
-- **Self-grade + audit trail.** Grades your roster as you build, and the project log compares the tool's grade to ESPN's after each mock.
+- **RB/WR depth balancing.** Favors whichever position is thinner in the flex and bench rounds to prevent positional gluts.
+- **Strength-of-schedule tilt.** A capped, position-aware nudge toward players facing weak defenses, built from the real season schedule and each defense's projected strength, with championship weeks weighted heavier.
+- **Cliff detection.** Reacts to live positional runs and drop-offs at RB, WR, and TE.
+- **Stacking engine.** Rewards QB plus same-team pass catchers, an "onslaught" bonus for loading up on one elite offense, an always-on **STACK OPTIONS** panel, and a live **🎯 TARGET STACK** that picks the cheapest stack to complete for your seat and names the exact pick to grab each piece.
+- **Self-grade and audit trail.** Grades your roster as you build, and the project log compares the tool's grade to ESPN's after each mock.
 
-## Tech
+## Engineering notes
 
 - **Manifest V3 Chrome extension**, single content script, no build step, no third-party libraries.
-- Reads **live data from ESPN's fantasy API** (league settings, player projections, pro schedule, defense strength) via the user's authenticated browser session — nothing leaves the browser.
-- Stays current automatically: stacks and player/team data are derived from ESPN's live season data at runtime; an injury-adjustment layer is refreshed daily by a scheduled task.
+- Reads **live data from ESPN's fantasy API** (league settings, player projections, pro schedule, defense strength) through the user's own authenticated browser session. **Nothing leaves the browser.**
+- Every strategy layer is **clamped** so it nudges rather than overrides the value model. That constraint is what kept 30+ tuning passes from fighting each other.
+- Stays current automatically: stacks and player/team data derive from ESPN's live season data at runtime, and an injury-adjustment layer refreshes daily on a scheduled task.
 
-## Install (load unpacked)
+## Build story
 
-1. Clone or download this folder.
-2. Open `chrome://extensions` and turn on **Developer mode** (top-right).
-3. Click **Load unpacked** and select the `DraftCoPilot_Extension` folder.
-4. Open an ESPN draft room — the panel appears automatically, top-right (drag the header to reposition). The version shows in the header.
+A condensed history. Each step was driven by a real mock draft and verified against ESPN's grade:
 
-## Configuration
-
-The target league is set by a single constant near the top of `content.js` (`REAL = <leagueId>`); point it at your own league. Scoring, roster slots, and draft position are then auto-detected from that league.
-
-## Project layout
-
-- `content.js` — the whole engine + UI (value model, strategy layers, stacking, panel).
-- `manifest.json` — MV3 manifest.
-- `adjustments.json` — injury/availability layer (refreshed daily).
-- `sos.json` — strength-of-schedule tilt data (built from the live schedule + defense strength).
+- **v2.17** — Position-aware "edge" tags explaining why a player wins under your scoring.
+- **v2.16** — Consensus draft round from live ADP, with a green ↓ when a player slips past it.
+- **v2.15** — Stacking simplified to a pure value/need/cliff engine plus a "stack unlocked" alert.
+- **v2.14** — Positional cliff awareness for RB/WR/TE.
+- **v2.13** — Stacks generated from live season rosters, retiring stale hand-curated lists.
+- **v2.11–2.12** — Stack-first targeting: pick the cheapest stack to complete, and only push a piece when it will not survive to your next pick.
+- **v2.6–2.10** — Stacking engine: QB and pass-catcher correlation, elite-offense onslaught, stack options, triple-stack alert.
+- **v2.5** — Draggable panel and live strength-of-schedule data.
+- **v2.4** — Scoring-aware green/yellow/red color coding.
+- **v2.3** — RB/WR depth balancing and SOS tilt engine.
+- **v2.1** — Streaming-aware QB baseline, per-seat blueprint, smarter self-grade.
+- **v2.0** — Value/VBD core, don't-reach and steal detection, self-grade.
 
 ---
 
-## Build story (changelog)
+## Legal
 
-A condensed history — each step was driven by a real mock draft and verified against ESPN's grade:
+**Copyright © 2026 Edmund Gray. All rights reserved.**
 
-- **v2.17** — Position-aware "edge" tags on each pick (why a player wins under your scoring: RB goal-line/receiving, WR target-hog/big-play, TE primary target, QB rushing, K offense, D/ST matchup).
-- **v2.16** — Consensus draft round (from live ADP) shown on each pick; green ↓ when a player slips past it.
-- **v2.15** — Stacking simplified to a pure value/need/cliff pick engine + a "stack unlocked" alert and top-stacks reference.
-- **v2.14** — Positional "cliff" awareness for RB/WR/TE: picks react to live positional runs/drop-offs.
-- **v2.13** — Stacks generated from live season rosters (no stale hand-curated lists).
-- **v2.11–2.12** — Stack-first *targeting*: picks the cheapest stack to complete for your seat and only pushes a piece when it won't survive to your next pick ("let the stack come to you").
-- **v2.6–2.10** — Stacking engine: QB↔pass-catcher correlation, elite-offense onslaught, always-on stack options, top-stacks reference, triple-stack alert.
-- **v2.5** — Draggable panel + live strength-of-schedule data.
-- **v2.4** — Scoring-aware green/yellow/red color-coding.
-- **v2.3** — RB/WR depth balancing + SOS tilt engine.
-- **v2.1** — Streaming-aware QB baseline, per-seat blueprint, smarter self-grade.
-- **v2.0** — Value/VBD core, don't-reach + steal detection, self-grade.
+This repository documents the project. It does not grant a license to any part of it. The source code, tuning data, strategy weights, and accompanying assets are proprietary. No permission is given to copy, modify, distribute, sublicense, or sell any portion of this work, whether or not the code appears in this repository's history.
 
-> Built by Edmund Gray as a fantasy-football drafting tool and an exercise in iterative, data-validated engineering.
+Built by Edmund Gray as a drafting tool and an exercise in iterative, data-validated engineering.
+📫 **EdmundGrayworks@gmail.com** · [GitHub](https://github.com/howrealizdat) · [LinkedIn](https://www.linkedin.com/in/edmundgraylinked)
